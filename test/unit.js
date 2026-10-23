@@ -98,7 +98,7 @@ let handsSim = 0, reshuffles = 0, leaksChecked = 0;
 function checkViews(room) {
   // every player's most recent state must not reveal any other player's hidden cards
   for (const p of room.players()) {
-    if (!p.connected || !p.ws.inbox.length) continue;
+    if (p.bot || !p.connected || !p.ws.inbox.length) continue;
     const st = [...p.ws.inbox].reverse().find(m => m.t === 'st'); if (!st) continue;
     st.seats.forEach((o, s) => {
       if (!o || s === p.seat) return;
@@ -232,6 +232,102 @@ console.log('simulated hands:', handsSim, 'view card checks:', leaksChecked);
   for (let i = 0; i < 150; i++) { p1.chatTimes = []; room.chatMsg(p1, 'm' + i); }
   ok(room.chat.length === 100, 'only last 100 messages kept');
   room.destroy();
+}
+
+// ---- 8. solo mode: one human plays the computer Dealer
+{
+  let soloHands = 0, dealerWins = 0, humanWins = 0, dealerChecks = 0;
+  const h = mkHarness(); const room = new Room('SOLO', cfg, h.hooks);
+  const ws = { inbox: [] };
+  const p = room.join('Sam', ws, 't');
+  room.start(p);
+  const D = room.dealer();
+  ok(D && D.bot && D.name === 'Dealer' && D.seat === 1, 'Dealer sits next to the solo host');
+  ok(room.host === p.seat, 'human stays host');
+  ok(room.chat.some(c => c.sys && /Dealer \(computer\) sits down/.test(c.m) && /Friends can still join/.test(c.m)), 'Dealer arrival explained');
+  for (let hand = 0; hand < 300; hand++) {
+    if (hand) ok(room.startHand(), 'solo hand ' + hand + ' starts');
+    ok(room.order.length === 2 && room.order.includes(D) && room.order.includes(p), 'solo hand: Sam vs Dealer');
+    let prevK = [0, 0];
+    while (room.phase === 'deal') {
+      room.dealStep();
+      const k = [p.hand.length, D.hand.length];
+      ok(Math.abs(k[0] - k[1]) <= 1 && k[0] + k[1] === prevK[0] + prevK[1] + (room.phase === 'deal' || k[0] + k[1] < 10 ? 1 : 0), 'cards dealt one at a time, alternately');
+      prevK = k;
+      const st = ws.inbox.filter(m => m.t === 'st').pop(), o = st.seats[D.seat];
+      dealerChecks++;
+      ok(o.b === 1 && o.cards === undefined && o.k === D.hand.length, 'Dealer cards hidden while dealing');
+    }
+    ok(p.hand.length === 5 && D.hand.length === 5, 'both get 5 cards');
+    ok(D.done, 'Dealer always stands');
+    let guard = 0;
+    while (room.phase === 'draw' && guard++ < 50) {
+      ok(room.turnPlayer() === p, 'only the human ever has the turn');
+      const st = ws.inbox.filter(m => m.t === 'st').pop();
+      dealerChecks++;
+      ok(st.seats[D.seat].cards === undefined && st.res === null, 'Dealer cards hidden during the draw');
+      if (room.sub === 'ask') room.act(p, Math.random() < 0.8 ? 'new' : 'stand');
+      else if (room.sub === 'take') room.act(p, Math.random() < 0.6 ? 'sel' : 'discard');
+      else room.act(p, 'swap', Math.floor(Math.random() * 5));
+      ok(p.offers <= 3, 'max 3 offers in solo');
+      ok(room.check(), 'conservation in solo');
+    }
+    ok(room.phase === 'show' && !room.result.walk, 'solo hand reaches showdown');
+    const sc = [p, D].map(q => refScore(q.hand).v), best = Math.max(...sc);
+    const refW = [p, D].filter((q, i) => sc[i] === best).map(q => q.seat).sort().join();
+    ok(refW === room.result.win.slice().sort().join(), 'solo winner matches reference');
+    ok(D.hand.length === 5 && D.pub.size === 0 && D.offers === 0, 'Dealer never drew');
+    ok(/the Dealer|The Dealer/.test(room.result.text + room.result.head), 'explanation names the Dealer: ' + room.result.text);
+    if (room.result.win.length === 1 && room.result.win[0] === D.seat) { dealerWins++; ok(room.result.head === 'The Dealer wins!', 'head: ' + room.result.head); ok(room.result.text.startsWith('The Dealer wins with'), 'text: ' + room.result.text); }
+    if (room.result.win.length === 1 && room.result.win[0] === p.seat) { humanWins++; ok(/the Dealer's /.test(room.result.text), 'loser named "the Dealer\'s": ' + room.result.text); }
+    ok(!/undefined|NaN|null/.test(room.result.text), 'no undefined in solo text');
+    const st = ws.inbox.filter(m => m.t === 'st').pop();
+    ok(st.res && st.res.hands.some(x => x.s === D.seat && x.n === 'Dealer' && x.cards.length === 5), 'Dealer cards revealed at showdown');
+    ws.inbox.length = 0; soloHands++;
+  }
+  ok(dealerWins > 50 && humanWins > 50, 'both sides win sometimes (' + dealerWins + '/' + humanWins + ')');
+  ok(D.wins === dealerWins && p.wins === humanWins, 'scoreboard counts Dealer wins');
+  // a second human joins mid-hand: Dealer finishes this hand and leaves at the next
+  room.startHand(); while (room.phase === 'deal') room.dealStep();
+  const ws2 = { inbox: [] }, g = room.join('Dealer', ws2, 'g');
+  ok(g.name === 'Dealer 2', '"Dealer" is reserved for the computer: ' + g.name);
+  ok(room.dealer() === D && D.inHand && !g.inHand, 'Dealer stays for the current hand');
+  while (room.phase === 'draw') { if (room.sub === 'ask') room.act(p, 'stand'); }
+  ok(room.phase === 'show' && !room.result.walk, 'current hand finishes normally');
+  const dw = D.wins;
+  ok(room.startHand(), 'next hand starts with 2 humans');
+  ok(!room.dealer() && room.order.length === 2 && room.order.every(q => !q.bot), 'Dealer stepped aside for the 2-human hand');
+  ok(room.chat.some(c => c.sys && /Dealer \(computer\) leaves the table — now it's humans only/.test(c.m)), 'Dealer leave announced');
+  while (room.phase === 'deal') room.dealStep();
+  while (room.phase === 'draw') room.act(room.turnPlayer(), 'stand');
+  room.leave(g, 'left');
+  ok(room.phase === 'show' && room.humans().length === 1, 'back to one human');
+  room.start(p);
+  ok(room.dealer() && room.dealer().wins === dw && room.phase === 'deal', 'Dealer returns with its score kept (' + dw + ')');
+  // solo human disconnects on their own turn: auto-stand ends the hand cleanly, then the Dealer leaves
+  while (room.phase === 'deal') room.dealStep();
+  room.disconnect(p, ws); room.timeout();
+  ok(room.phase === 'show' && !room.result.walk && room.check(), 'offline solo player auto-stands; showdown');
+  ok(!room.startHand(), 'no hand while the only human is offline');
+  room.toWait();
+  ok(!room.dealer() && room.phase === 'wait' && !room.dead, 'Dealer leaves when the table goes back to waiting');
+  room.reconnect(p, ws, 't'); room.start(p);
+  ok(room.dealer() && room.phase === 'deal', 'Dealer option returns after reconnect');
+  // humans keep priority: the Dealer never takes a human's seat
+  const extra = [];
+  for (let i = 0; i < 7; i++) extra.push(room.join('H' + i, { inbox: [] }, 'h'));
+  ok(extra.every(Boolean) && room.humans().length === 8 && !room.dealer(), '8 humans fit; Dealer stepped aside for the 8th');
+  ok(room.join('H9', { inbox: [] }, 'h') === null, '9th human rejected');
+  ok(room.check() && room.seats.every(q => q && !q.bot), 'table full of humans, cards conserved');
+  ok(room.phase === 'show' || room.phase === 'draw' || room.phase === 'deal', 'phase ' + room.phase);
+  for (const q of room.humans().slice()) if (q !== p) room.leave(q, 'left');
+  // host never goes to the Dealer; last human leaving destroys the room
+  room.toWait(); room.start(p);
+  ok(room.dealer() && room.host === p.seat, 'Dealer back; human still host');
+  room.leave(p, 'left');
+  ok(room.dead && room.timer === null && room.nextTimer === null, 'room destroyed when the solo human leaves');
+  ok(!h.inv.length && !h.errors.length, 'no invariant failures in solo mode ' + (h.inv[0] || h.errors[0] || ''));
+  console.log('solo unit hands: ' + soloHands + ' (Dealer won ' + dealerWins + ', human won ' + humanWins + '), hidden-card checks: ' + dealerChecks);
 }
 
 console.log('unit tests: ' + pass + ' passed, ' + fail + ' failed');

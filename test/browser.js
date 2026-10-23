@@ -259,6 +259,7 @@ async function session(size, hands, extra = {}) {
     await p.ctx.close();
   }
 
+  if (process.env.SOLO_ONLY) { /* skip multi-player sessions */ } else {
   // ---- 2..7 player sessions with random play
   for (const size of [2, 3, 5, 6, 7]) { await session(size, PER); console.log(`  size ${size} done — ${stat.hands} showdowns so far (${((Date.now() - t0) / 1000).toFixed(0)}s)`); }
 
@@ -345,7 +346,7 @@ async function session(size, hands, extra = {}) {
   // ---- 4 players: reload during own turn & during selection, leaving mid-turn, host leaves, mid-hand joiner, leave mid-showdown
   {
     const done = {};
-    await session(4, PER, {
+    await session(4, Math.max(PER, 6), {
       opts: (h, ps) => ({
         timeoutP: 0.01,
         hook: async (tp, T, L) => {
@@ -430,6 +431,65 @@ async function session(size, hands, extra = {}) {
       ok(stay.pageErrors.length === 0, 'no errors for the last player');
     }
   });
+
+  }
+  // ---- solo mode: one player vs the computer Dealer, a friend joins (Dealer steps aside), back to solo
+  {
+    const sam = await (await new Player('Sam').init()).create();
+    const ps = [sam];
+    await sam.waitFor(() => sam.S.ph === 'wait', 3000, 'solo wait');
+    const prompt0 = await sam.page.textContent('#prompt');
+    ok(/only player here/.test(prompt0) && /Play vs Dealer/.test(prompt0) && /Friends can still join/.test(prompt0), 'solo waiting text: ' + prompt0.slice(0, 200));
+    ok(/Play vs Dealer/.test(await sam.page.textContent('#startBtn')), 'start button reads Play vs Dealer');
+    let shot = false, soloHands = 0, dealerSeen = 0;
+    const soloOpts = {
+      hook: async (tp, T) => {
+        const ds = T.seats.findIndex(q => q && q.b);
+        if (ds >= 0 && !dealerSeen) {
+          dealerSeen++;
+          const pod = await tp.page.evaluate(s => { const e = document.querySelector('#opps .pod[data-seat="' + s + '"]'); return e ? { t: e.textContent, down: e.querySelectorAll('.card.down').length } : null; }, ds);
+          ok(pod && /🤖 Dealer/.test(pod.t) && /computer/.test(pod.t) && /Always stands/.test(pod.t), 'Dealer pod labelled as the computer: ' + (pod && pod.t));
+          ok(pod && pod.down === 5, 'Dealer cards face down during the draw (' + (pod && pod.down) + ')');
+        }
+        return false;
+      },
+      atShow: async L => {
+        const S = sam.S; if (!S.res || S.res.walk) return;
+        soloHands++;
+        ok(S.res.hands.some(h => h.n === 'Dealer' && h.cards.length === 5), 'Dealer hand revealed at showdown');
+        ok(/the Dealer|The Dealer/.test(S.res.text), 'explanation names the Dealer: ' + S.res.text);
+        if (S.res.win.length === 1 && S.seats[S.res.win[0]].b) ok(S.res.head === 'The Dealer wins!', 'Dealer win headline: ' + S.res.head);
+        const sb = await sam.page.textContent('#score').catch(() => '');
+        ok(/🤖 Dealer/.test(sb), 'Dealer on the scoreboard');
+        if (!shot && S.res.win.length === 1) { shot = true; await sam.page.screenshot({ path: path.join(SHOTS, 'solo.png') }); }
+      }
+    };
+    for (let h = 0; h < Math.max(4, PER); h++) await playHand(ps, soloOpts);
+    ok(dealerSeen && soloHands >= 3, 'solo hands played in the browser: ' + soloHands);
+    stat.soloHands = soloHands;
+    // a friend joins mid-hand: the Dealer finishes the hand, then steps aside
+    let guest = null;
+    await playHand(ps, {
+      hook: async (tp) => { if (!guest) { guest = await (await new Player('Friend').init()).join(sam.code, true); ps.push(guest); ok(!guest.S.seats[guest.S.you].ih && guest.S.seats.some(q => q && q.b && q.ih), 'friend waits while the Dealer finishes the hand'); } return false; },
+      atShow: async () => {
+        await sleep(100);
+        const t = await sam.page.textContent('#prompt');
+        ok(/steps aside from the next hand/.test(t), 'showdown note: Dealer steps aside');
+        ok(/Deal next hand/.test(await sam.page.textContent('#startBtn')), 'button back to "Deal next hand" with 2 humans');
+      }
+    });
+    ok(guest, 'friend joined');
+    await playHand(ps, { hook: async (tp, T) => { ok(!T.seats.some(q => q && q.b), 'no Dealer in the 2-human hand'); return false; } });
+    ok(sam.chats.some(m => m.sys && /Dealer \(computer\) leaves the table/.test(m.m)), 'Dealer leave announced in chat');
+    await guest.leave();
+    await sam.waitFor(() => sam.S.seats.filter(Boolean).length === 1, 4000, 'back to solo');
+    await sleep(150);
+    ok(/Play vs Dealer/.test(await sam.page.textContent('#startBtn').catch(() => '')), 'Play vs Dealer offered again when alone');
+    await playHand(ps, { atShow: async () => { ok(sam.S.seats.some(q => q && q.b), 'Dealer back at the table'); } });
+    ok(sam.pageErrors.length === 0 && guest.pageErrors.length === 0, 'no page errors in solo mode: ' + sam.pageErrors.concat(guest.pageErrors).join('|').slice(0, 300));
+    await sam.leave();
+    console.log(`  solo done — ${soloHands} solo browser hands, ${stat.hands} showdowns so far`);
+  }
 
   // ---- deferred leak check: every hidden-card string any browser saw must have been public (offered) in that hand
   let leaks = 0; for (const [k, c, who] of pendingLeak) if (!(offersSeen.get(k) || new Set()).has(c)) { leaks++; if (leaks < 5) console.log('LEAK', k, c, who); }

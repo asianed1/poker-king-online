@@ -39,7 +39,7 @@ button:disabled{opacity:.45;cursor:default}
 .pod.off{opacity:.6}.pod.out .row{opacity:.35}
 .badge{font-size:10px;font-weight:bold;padding:1px 4px;border-radius:4px;background:#000a;color:#fff;font-family:Arial,sans-serif;white-space:nowrap}
 .badge.btn{background:#fff;color:#000;border-radius:50%;padding:1px 5px}.badge.host{background:#ffd54a;color:#000}.badge.off{background:#c33}.badge.wait{background:#666}
-.badge.tm{background:#3cf;color:#000}.badge.rk{background:#ffd54a;color:#000}.badge.done{background:#2a6}
+.badge.tm{background:#3cf;color:#000}.badge.rk{background:#ffd54a;color:#000}.badge.done{background:#2a6}.badge.cpu{background:#c9d3dc;color:#123}
 /* center */
 #center{position:absolute;left:220px;top:106px;width:500px;height:214px;display:flex;flex-direction:column;align-items:center;gap:4px}
 #status{font-size:15px;min-height:20px;text-align:center;color:#fff}

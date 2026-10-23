@@ -97,7 +97,10 @@
     render(old);
   }
   function isMyTurn() { return !!S && S.ph === 'draw' && S.turn === me && me >= 0; }
-  function nm(s) { var q = S && S.seats[s]; return q ? q.n : 'A player'; }
+  function nm(s) { var q = S && S.seats[s]; return q ? (q.b ? 'the Dealer' : q.n) : 'A player'; }
+  function label(q) { return q.b ? '🤖 Dealer' : q.n; }                     // the computer Dealer gets a robot icon
+  function humans() { var n = 0; S.seats.forEach(function (q) { if (q && !q.b) n++; }); return n; }
+  function hasDealer() { return S.seats.some(function (q) { return q && q.b; }); }
   function resHand(s) { var q = S.seats[s]; if (!q || !S.res || !S.res.hands) return null; for (var i = 0; i < S.res.hands.length; i++) if (S.res.hands[i].s === s && S.res.hands[i].id === q.id) return S.res.hands[i]; return null; }
   var ORD = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
   function isWinner(s) { var h = resHand(s); return !!(h && S.res.win.indexOf(s) >= 0) || !!(S.res && S.res.walk && S.res.win.indexOf(s) >= 0); }
@@ -107,6 +110,7 @@
     renderOpps(); renderMe(); renderCenter(); renderScore(); renderLadder(); tick();
   }
   function badges(q, s, box) {
+    if (q.b) box.appendChild(el('span', 'badge cpu', 'computer')).title = 'The Dealer is played by the computer. It never draws new cards.';
     if (S.btn === s && S.hn > 0) box.appendChild(el('span', 'badge btn', 'D')).title = 'Dealer button';
     if (S.host === s) box.appendChild(el('span', 'badge host', '★ Host'));
     if (!q.on) box.appendChild(el('span', 'badge off', 'offline'));
@@ -137,10 +141,11 @@
       if (S.turn === s) pod.classList.add('turn');
       if (S.ph === 'show' && S.res && isWinner(s)) pod.classList.add('win');
       if (!q.on) pod.classList.add('off');
-      var head = el('div', 'nm'); var who = el('span', 'who', q.n); who.style.color = safeColor(q.c); head.appendChild(who); badges(q, s, head); pod.appendChild(head);
+      var head = el('div', 'nm'); var who = el('span', 'who', label(q)); who.style.color = safeColor(q.c); head.appendChild(who); badges(q, s, head); pod.appendChild(head);
       var row = el('div', 'row'); handRow(q, s, row, true, res); pod.appendChild(row);
       var hn = el('div', 'hn');
       if (res) { hn.appendChild(el('span', 'badge rk', ORD[res.rank])); hn.appendChild(document.createTextNode(' ' + res.hn)); hn.title = E.DESC[res.cat]; }
+      else if (S.ph === 'draw' && q.ih && q.b) hn.textContent = 'Always stands (never draws)';
       else if (S.ph === 'draw' && q.ih) hn.textContent = S.turn === s ? 'Offer ' + Math.min(3, S.ofs + (S.sub === 'ask' ? 1 : 0)) + ' of 3' : (q.d ? 'Finished drawing' : 'Waiting to draw');
       else if (!q.ih && S.hn > 0 && S.ph !== 'show') hn.textContent = 'Joins next hand';
       else if (!q.ih && S.ph === 'wait') hn.textContent = 'Ready';
@@ -188,7 +193,12 @@
     }
     return '';
   }
-  function canStart() { if (!S || S.host !== me) return false; var n = 0; S.seats.forEach(function (q) { if (q && q.on) n++; }); return n >= 2; }
+  function canStart() {
+    if (!S || S.host !== me) return false;
+    var n = 0; S.seats.forEach(function (q) { if (q && q.on && !q.b) n++; });
+    return n >= 2 || humans() === 1;           // alone: play against the computer Dealer
+  }
+  function soloStart() { return humans() === 1 && !hasDealer(); }
   function renderCenter() {
     var st = $('status'), center = $('center'), q = S.seats[me];
     var tp = S.turn >= 0 ? S.seats[S.turn] : null, myTurn = isMyTurn();
@@ -203,11 +213,12 @@
     $('newcap').textContent = S.offer && tp ? (S.turn === me ? 'Your new card' : tp.n + "'s new card") : 'New card';
     var host = S.seats[S.host], hostName = host ? esc(host.n) : 'the host';
     if (S.ph === 'wait') {
-      var n = S.seats.filter(Boolean).length;
+      var n = humans();
       st.textContent = 'Waiting for players — ' + n + ' of 8 seated';
       if (S.nx) { st.appendChild(document.createTextNode(' · next hand in ')); var tw = el('span', 'tmr'); tw.dataset.tm = 'nx'; st.appendChild(tw); }
       if (S.host === me) {
-        if (canStart()) setPrompt('<div class="q">Everyone here?</div>Start when you are ready. More friends can join any time with the invite link.', [['Start game (Enter)', startGame, 'startBtn']]);
+        if (canStart() && n === 1) setPrompt('<div class="q">You\'re the only player here.</div>Press <b>Play vs Dealer</b> to play against the computer 🤖 Dealer right away. Friends can still join with the invite link or table code <b>' + esc(S.code) + '</b> — the Dealer steps aside when a second player arrives.', [['Play vs Dealer (Enter)', startGame, 'startBtn']]);
+        else if (canStart()) setPrompt('<div class="q">Everyone here?</div>Start when you are ready. More friends can join any time with the invite link.', [['Start game (Enter)', startGame, 'startBtn']]);
         else setPrompt('<div class="q">You are the host.</div>Share the invite link or table code <b>' + esc(S.code) + '</b>. You need at least 2 players to start.', []);
       } else setPrompt('<div class="q">Waiting for ' + hostName + ' to start…</div>The host deals the first hand when everyone is ready.', []);
     } else if (S.ph === 'deal') {
@@ -230,8 +241,9 @@
       st.innerHTML = ''; st.appendChild(document.createTextNode('Hand #' + S.hn + ' — showdown'));
       if (S.nx) { st.appendChild(document.createTextNode(' · next hand in ')); var t2 = el('span', 'tmr'); t2.dataset.tm = 'nx'; st.appendChild(t2); }
       var b = [];
-      if (S.host === me && canStart()) b.push(['Deal next hand (Enter)', startGame, 'startBtn']);
-      setPrompt('<div class="res">' + esc(S.res.head) + '</div><div class="exp">' + esc(S.res.text) + '</div>' + (S.host !== me ? '<div class="desc">' + hostName + ' (host) deals the next hand.</div>' : ''), b);
+      if (S.host === me && canStart()) b.push([soloStart() ? 'Play vs Dealer (Enter)' : 'Deal next hand (Enter)', startGame, 'startBtn']);
+      var dealerNote = hasDealer() && humans() >= 2 ? '<div class="desc">A second player is here, so the 🤖 Dealer steps aside from the next hand.</div>' : '';
+      setPrompt('<div class="res">' + esc(S.res.head) + '</div><div class="exp">' + esc(S.res.text) + '</div>' + (S.host !== me ? '<div class="desc">' + hostName + ' (host) deals the next hand.</div>' : '') + dealerNote, b);
     }
   }
   function renderScore() {
@@ -240,7 +252,7 @@
     S.seats.forEach(function (q, s) { if (q) list.push([q, s]); });
     list.sort(function (a, b) { return b[0].w - a[0].w || b[0].sp - a[0].sp || a[1] - b[1]; });
     list.forEach(function (x) {
-      var r = el('div', 'sr' + (x[1] === me ? ' me' : '')), n = el('span', 'nm', x[0].n + (x[1] === me ? ' (you)' : ''));
+      var r = el('div', 'sr' + (x[1] === me ? ' me' : '')), n = el('span', 'nm', label(x[0]) + (x[1] === me ? ' (you)' : ''));
       n.style.color = safeColor(x[0].c); r.appendChild(n);
       var v = el('span'); v.appendChild(el('b', null, String(x[0].w))); v.appendChild(document.createTextNode(' won' + (x[0].sp ? ' · ' + x[0].sp + ' split' : '')));
       r.appendChild(v); box.appendChild(r);

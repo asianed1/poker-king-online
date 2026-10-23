@@ -131,7 +131,7 @@ function handle(ws, data, isBinary) {
       const code = String(m.room || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
       const room = rooms.get(code);
       if (!room || room.dead) return sendWs(ws, { t: 'err', code: 'nf', m: 'No table found with code "' + code + '". Check the code, or create a new table.' });
-      if (room.count() >= MAX_SEATS) return sendWs(ws, { t: 'err', code: 'full', m: 'Sorry, table ' + code + ' is full — 8 players is the maximum. Try another table or create your own!' });
+      if (room.humans().length >= MAX_SEATS) return sendWs(ws, { t: 'err', code: 'full', m: 'Sorry, table ' + code + ' is full — 8 players is the maximum. Try another table or create your own!' });
       room.join(name, ws, cleanTab(m.tab));
       return;
     }

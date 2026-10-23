@@ -3,7 +3,8 @@
 *Published by Crow New Media*
 
 POKER KING Online is a multiplayer version of the single-player POKER KING game, for 2–8 poker
-beginners anywhere in the world. Everyone gets five cards. On your turn you can ask for up to
+beginners anywhere in the world — or just you against the computer **Dealer** when nobody else is
+around. Everyone gets five cards. On your turn you can ask for up to
 three new face-up cards and swap them into your hand, and then everyone shows their hand. There
 is no betting. The game explains in plain English why the winning hand won.
 
@@ -34,7 +35,8 @@ Then:
 2. Type a name and press **Create a new table**.
 3. Press **Copy invite link** and open that link in another browser window, such as a private or
    incognito window. Each window is a separate player.
-4. Once two or more players are seated, the host (the table's creator) presses **Start game**.
+4. Once two or more players are seated, the host (the table's creator) presses **Start game** — or, if
+   you're on your own, **Play vs Dealer** to play against the computer.
 
 You can also play with friends on the same Wi-Fi. They open `http://<your-computer's-IP>:3000`.
 To play with people anywhere, deploy the game as described in section 2.
@@ -111,11 +113,30 @@ On Render, set these under **Environment** in the dashboard. Locally, run for ex
   * Enter a display name.
   * **Create a new table** gives you a 5-character code and an invite link (`…/?room=CODE`).
     Friends can open the link, or type the code and press **Join**.
-  * A table holds 2–8 players. A 9th player gets a friendly "table is full" message.
+  * A table holds up to 8 players. A 9th player gets a friendly "table is full" message.
 * **Host**
-  * The table's creator is the host and presses **Start game** once 2 or more players are seated.
+  * The table's creator is the host and presses **Start game** once 2 or more players are seated
+    (or **Play vs Dealer** when alone — see below).
   * If the host leaves, the next seated player clockwise (preferring someone online) becomes host.
   * People who join during a hand are dealt in on the next one.
+* **Playing alone vs the Dealer**
+  * If you're the only person at the table, the host button reads **Play vs Dealer**. It seats the
+    computer **🤖 Dealer** (marked "computer") and deals straight away, just like the
+    single-player game:
+    * the Dealer gets 5 cards dealt alternately with yours, face down until the showdown;
+    * the Dealer never draws — it always stands;
+    * you get your usual 3 offers;
+    * the showdown explains the result in the same beginner style ("…beats the Dealer's Pair of 7s").
+  * Hands keep coming automatically while you play the Dealer.
+  * Friends can still join with the invite link or code at any time. When a second person sits
+    down, the current hand finishes normally and the Dealer steps aside from the next hand. If
+    everyone else leaves again, **Play vs Dealer** comes back.
+  * The Dealer has a row on the scoreboard while it's seated, and keeps its score if it comes
+    back. It is never the host, never times out, and never takes a seat a person needs: up to 8
+    people can always join.
+  * The name "Dealer" is reserved for the computer (a person called Dealer becomes "Dealer 2").
+  * If you lose your connection during a hand vs the Dealer, your turn auto-stands as usual and the
+    hand ends normally. Your seat is held for 60 seconds.
 * **Deal**
   * Every hand uses a fresh, freshly shuffled 52-card deck.
   * Cards are dealt one at a time, starting to the left of the dealer button, until everyone has
@@ -164,7 +185,7 @@ public/index.html    Page layout (lobby, table, chat)
 public/style.css     Green felt / CSS cards look, 1280×720 scale-to-fit stage
 public/client.js     Browser client: rendering, keyboard/mouse, chat, reconnect
 public/evaluator.js  Hand evaluator — unmodified copy from the single-player POKER KING
-test/                unit.js, bots.js, malicious.js, browser.js (+ helpers, reference evaluator)
+test/                unit.js, bots.js, solo.js, malicious.js, browser.js (+ helpers, reference evaluator)
 screenshots/         1280×720 screenshots produced by the browser test
 render.yaml          Render Blueprint
 ```
@@ -174,10 +195,11 @@ render.yaml          Render Blueprint
 ```bash
 npm test                       # unit tests: evaluator, multi-way ranking, ties, explanations, room simulation
 npm run test:bots -- 45        # real server + protocol bots: 14 tables of 2–8 players, ~45 showdowns per table
+npm run test:solo -- 12        # solo vs the Dealer: 12 tables, ~12 solo showdowns each; friends join/leave mid-hand
 npm run test:malicious         # hostile clients: junk/oversized/flood messages, out-of-turn, races, cleanup
 # real browsers (headless Chrome via playwright-core):
 mkdir -p /tmp/pw && (cd /tmp/pw && npm init -y && npm i playwright-core)
-npm run test:browser -- 8      # ~60 hands across 2–8 players; saves screenshots/
+npm run test:browser -- 8      # ~60 hands across 2–8 players + solo vs Dealer; saves screenshots/ (incl. solo.png)
 ```
 
 The browser test expects Chrome at `/usr/bin/google-chrome` (override with `CHROME=/path/to/chrome`), and finds playwright-core through

@@ -78,9 +78,10 @@ class Bot {
     if (this.S && this.S.host !== m.host) {
       const old = this.S.host;
       if (m.seats[old] && this.S.seats[old] && m.seats[old].n === this.S.seats[old].n) fail('host changed while host still seated');
-      else { let exp = -1, any = -1; for (let k = 1; k <= 8; k++) { const s = (old + k) % 8; if (s !== old && m.seats[s] && m.seats[s].on) { exp = s; break; } if (m.seats[s] && any < 0) any = s; } if (exp < 0) exp = any; if (exp !== m.host) fail('host handoff expected ' + exp + ' got ' + m.host); }
+      else { let exp = -1, any = -1; for (let k = 1; k <= 8; k++) { const s = (old + k) % 8; if (s !== old && m.seats[s] && !m.seats[s].b && m.seats[s].on) { exp = s; break; } if (m.seats[s] && !m.seats[s].b && any < 0) any = s; } if (exp < 0) exp = any; if (exp !== m.host) fail('host handoff expected ' + exp + ' got ' + m.host); }
     }
     if (!m.seats[m.host]) fail('host seat empty');
+    if (m.seats[m.host] && m.seats[m.host].b) fail('Dealer became host');
     if (m.ph === 'show' && (!this.S || this.S.ph !== 'show' || this.S.hn !== m.hn)) this.onShowdown(m);
   }
   onShowdown(m) {

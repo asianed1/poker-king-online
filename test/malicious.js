@@ -195,6 +195,61 @@ function get(path) { return new Promise(res => http.get({ host: 'localhost', por
     spy.ws.close();
   }
 
+  // ---- 9b. solo mode (computer Dealer): leaks, spam, disconnect on own turn, seat cap
+  {
+    const s = new C('Solo'); await s.open(); s.send({ t: 'create', name: 'Solo' }); await s.wait(m => m.t === 'welcome');
+    s.send({ t: 'act', a: 'new' }); s.send({ t: 'start', x: 1 }); s.send({ t: 'start' }); // double start
+    const st = await s.waitState(m => m.ph === 'deal');
+    const ds = st.seats.findIndex(q => q && q.b);
+    ok(ds >= 0 && st.seats[ds].n === 'Dealer' && st.host === s.seat, 'solo start seats the Dealer, human stays host');
+    for (let i = 0; i < 15; i++) s.send({ t: 'act', a: ['sel', 'swap', 'discard', 'cancel', 'take'][i % 5], i: i % 7, seat: ds }); // out-of-state spam (deal / ask phase)
+    await s.waitState(m => m.ph === 'draw' && m.turn === s.seat, 3000);
+    const before = s.msgs.length;
+    s.send({ t: 'act', a: 'new' }); s.send({ t: 'act', a: 'new' }); s.send({ t: 'act', a: 'new' }); // duplicates: only the first counts
+    await sleep(120);
+    ok(s.S.ofs === 1 && s.S.sub === 'take', 'duplicate "new" counted once in solo (' + JSON.stringify({ ph: s.S.ph, turn: s.S.turn, me: s.seat, ofs: s.S.ofs, sub: s.S.sub, last: s.S.last, hn: s.S.hn }) + ')');
+    s.send({ t: 'chat', m: 'brb' }); await sleep(30);
+    // vanish on own turn: grace 0.3 s then auto-stand -> showdown, hand ends cleanly without a client
+    s.ws.close(); await sleep(900);
+    let sd = (await getStats(PORT)).roomsDetail.find(r => r.code === s.code);
+    ok(sd && sd.ph === 'show' && sd.players.includes('Dealer'), 'offline solo player auto-stood, hand reached showdown: ' + JSON.stringify(sd));
+    // every message before showdown: no Dealer cards anywhere
+    const pre = s.msgs.filter(m => !(m.t === 'st' && m.ph === 'show'));
+    let leak = 0; const mine = new Set();
+    for (const m of pre) if (m.t === 'st') { const o = m.seats[ds]; if (o && o.cards) leak++; (m.seats[s.seat].cards || []).forEach(c => mine.add(c)); if (m.offer) mine.add(m.offer); if (m.last && m.last.c) mine.add(m.last.c); }
+    const strays = pre.flatMap(m => cardStrings(m)).filter(c => !mine.has(c));
+    ok(leak === 0 && strays.length === 0, 'no Dealer cards before showdown (' + leak + ' seat leaks, strays ' + strays.slice(0, 3) + ')');
+    const r = new C('Solo-back'); await r.open(); r.send({ t: 'resume', tok: s.tok, tab: 'q' });
+    const rs = await r.waitState(m => m.ph === 'show');
+    ok(rs.res && rs.res.hands.length === 2 && rs.res.hands.some(h => h.n === 'Dealer' && h.cards.length === 5) && /Dealer/.test(rs.res.text), 'reconnected player sees the showdown vs the Dealer');
+    r.send({ t: 'leave' }); await sleep(150);
+    sd = (await getStats(PORT)).roomsDetail.find(x => x.code === s.code);
+    ok(!sd, 'solo room removed when the human leaves');
+    r.ws.close();
+  }
+  {
+    // 8 humans can always join a solo table; the Dealer gives up its seat (mid-hand -> hand ends by default)
+    const s = new C('Solo2'); await s.open(); s.send({ t: 'create', name: 'Dealer' }); const w = await s.wait(m => m.t === 'welcome');
+    ok(w.name === 'Dealer 2', 'humans cannot take the name "Dealer" (' + w.name + ')');
+    s.send({ t: 'start' }); await s.waitState(m => m.ph === 'draw');
+    const js = [];
+    for (let i = 0; i < 7; i++) { const c = new C('J' + i); await c.open(); c.send({ t: 'join', room: s.code, name: 'J' + i }); const m = await c.wait(m => m.t === 'welcome' || m.t === 'err'); ok(m.t === 'welcome', 'human ' + (i + 2) + ' seated with the Dealer present'); js.push(c); }
+    await sleep(100);
+    ok(s.S.seats.every(q => q && !q.b), '8 humans, Dealer gone: ' + s.S.seats.map(q => q && q.n));
+    ok(s.S.ph === 'show' && s.S.res && s.S.res.walk && s.S.res.win[0] === s.seat, 'solo hand ended by default for the human when the Dealer left');
+    const x = new C('X'); await x.open(); x.send({ t: 'join', room: s.code, name: 'X' }); const m = await x.wait(m => m.t === 'err' || m.t === 'welcome');
+    ok(m.t === 'err' && m.code === 'full', '9th human rejected');
+    // all but one leave -> host can play vs Dealer again
+    for (const c of js) c.send({ t: 'leave' });
+    await sleep(200);
+    ok(s.S.ph === 'wait' || s.S.ph === 'show', 'phase after others left: ' + s.S.ph);
+    s.send({ t: 'start' });
+    const st2 = await s.waitState(m => m.ph === 'deal' || m.ph === 'draw');
+    ok(st2.seats.some(q => q && q.b), 'Dealer option returns when back to one human');
+    s.send({ t: 'leave' }); x.ws.close(); js.forEach(c => c.ws.close()); await sleep(150);
+    s.ws.close();
+  }
+
   // ---- 10. cleanup + memory: 300 rooms created and abandoned
   for (const c of cs) { try { c.send({ t: 'leave' }); c.ws.close(); } catch (e) { } }
   const heap0 = (await getStats(PORT)).mem;
