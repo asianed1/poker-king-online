@@ -11,6 +11,7 @@ button:disabled{opacity:.45;cursor:default}
 .main{flex:none;height:470px;display:flex;gap:8px;padding:0 10px}
 .felt{position:relative;flex:1;border-radius:120px/90px;background:radial-gradient(ellipse at center,#22894a 0%,#146232 75%,#0e4a25 100%);box-shadow:inset 0 0 0 5px #3d2610,inset 0 0 30px #0008}
 .side{width:296px;flex:none;display:flex;flex-direction:column;gap:6px;overflow:hidden}
+.side>.board{flex:0 1 auto;min-height:44px;overflow-y:auto}.side>.ladder,.side>.tips{flex:none} /* crowded scoreboard scrolls instead of pushing the keys help out of view */
 /* cards (same look as single-player) */
 .row{display:flex;gap:10px;justify-content:center}
 .card{width:76px;aspect-ratio:5/7;perspective:600px;position:relative;cursor:default;transition:transform .2s;flex:none}
@@ -91,3 +92,99 @@ footer{text-align:center;font-size:12px;padding:3px;opacity:.8;flex:none}
 #banner{position:absolute;top:50px;left:50%;transform:translateX(-50%);background:#c33;color:#fff;padding:6px 16px;border-radius:8px;z-index:9;font-size:15px}
 #toast{position:absolute;top:84px;left:50%;transform:translateX(-50%);background:#000c;color:#fff;border:2px solid #ffd54a;padding:6px 16px;border-radius:8px;z-index:9;font-size:15px;max-width:700px;text-align:center}
 .hidden{display:none!important}
+
+/* ================= mobile / touch layout — only when <html> has class "mob" (set by client.js:
+   narrow or short viewport, or a touch tablet). The desktop 1280x720 stage above is unchanged. */
+.mobonly,#chatbar,.sheethead,#showlist,#sheetbg{display:none}
+html.mob,.mob body{height:100%;overscroll-behavior:none}
+.mob body{overflow:hidden;-webkit-text-size-adjust:100%}
+.mob #app{position:fixed;left:0;top:var(--vvt,0px);width:100%;height:var(--vvh,100dvh);transform:none!important;border:0;border-radius:0;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);--cw:min(calc((100vw - 64px) / 5),118px)}
+.mob .deskonly{display:none!important}.mob .mobonly{display:inline}
+.mob button{min-height:44px;touch-action:manipulation}
+.mob header{height:auto;flex-wrap:wrap;gap:0 6px;padding:2px 8px;justify-content:flex-end}
+.mob header::before{content:'';order:2;flex-basis:100%;height:0}
+.mob header h1{font-size:17px;letter-spacing:1px;white-space:nowrap}.mob header .pub{display:none}.mob .brand{order:0;margin-right:auto}
+.mob .hinfo{display:contents;font-size:12.5px}.mob .hinfo>span{order:3;font-size:12.5px;line-height:18px}.mob .hinfo>button{order:1}
+.mob .hinfo button.sm{font-size:13.5px;padding:2px 9px}
+.mob.land header{flex-wrap:nowrap;gap:0 9px}.mob.land header::before{display:none}.mob.land .hinfo>span{order:1;font-size:13px}.mob.land .hinfo>button{order:2}
+.mob .main{display:block;flex:1 1 auto;height:auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:0 6px;-webkit-overflow-scrolling:touch}
+.mob .felt{min-height:100%;border-radius:18px;display:flex;flex-direction:column;gap:6px;padding:8px 6px 6px;min-width:0}
+/* opponents: compact mini seats */
+.mob #opps{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:5px;order:1}
+.mob .pod{position:static!important;width:auto;min-width:0;padding:2px 3px 3px;border-radius:9px}
+.mob .pod .nm{font-size:12.5px;gap:2px 3px;flex-wrap:wrap;white-space:normal}.mob .pod .nm .who{max-width:100%;white-space:nowrap}.mob .pod .badge.cpu{display:none}
+.mob .pod .row{gap:2px;min-height:0;margin:2px 0}
+.mob .pod .card.mini{width:18px}.mob .pod .card.mini .face{padding:1px 2px;border-radius:3px}.mob .pod .card.mini .back{border-width:1px;border-radius:3px}
+.mob .pod .card.mini .face .c{font-size:9.5px}.mob .pod .card.mini .face .m{display:none}
+.mob .pod .hn{font-size:11px;min-height:13px}
+.mob.inshow #opps{display:none}
+/* centre: status, face-up new card, prompt and big buttons */
+.mob #center{position:static;width:auto;height:auto;gap:4px;order:2}
+.mob #status{font-size:14px}
+.mob .mid{gap:10px;align-items:center;flex:none}
+.mob #newspot{width:66px;height:92px}.mob #newspot .card,.mob #newspot .slot{width:66px}
+.mob .cap{max-width:80px}
+.mob #prompt{max-height:none;font-size:15px;overflow:visible}.mob #prompt .q{font-size:18px}.mob #prompt .res{font-size:20px}.mob #prompt .exp{font-size:14px}
+.mob .btns{gap:8px}.mob .btns button{font-size:17px;padding:8px 16px;min-height:48px;min-width:96px}
+/* own hand: large, at the bottom, tap a card to swap */
+.mob #me{position:static;width:auto;margin-top:auto;padding:4px 4px 6px;order:4}
+.mob #mehead{font-size:15px}
+.mob #myhand{min-height:0;margin:12px 0 2px;gap:6px}
+.mob #myhand .card{width:var(--cw)}
+.mob #myhand .face{padding:3px 5px;border-radius:8px}.mob #myhand .face .c{font-size:calc(var(--cw) * .22)}.mob #myhand .face .m{font-size:calc(var(--cw) * .42)}
+.mob #newspot .face .c{font-size:13px}.mob #newspot .face .m{font-size:26px}
+.mob .card.cur{transform:translateY(-8px)}
+.mob .hname{font-size:15px}.mob .desc{font-size:12.5px}
+/* showdown: scrollable list of every hand with its explanation */
+.mob.inshow #showlist{display:flex;flex-direction:column;gap:5px;order:3;min-width:0}
+.sl{background:#0007;border:2px solid #0000;border-radius:10px;padding:4px 7px}.sl.win{border-color:#ffd54a;box-shadow:0 0 10px #ffd54a88}.sl.me{background:#ffffff1f}
+.slh{display:flex;gap:6px;align-items:center;font-size:14px;flex-wrap:wrap}.slh .who{font-weight:bold}.slh .slhn{color:#ffd54a;font-weight:bold}
+.sl .row{justify-content:flex-start;gap:4px;margin:3px 0}
+.sl .card.mini{width:32px}.sl .card.mini .face .c{font-size:11px}.sl .card.mini .face .m{font-size:15px}
+.sld{font-size:12.5px;font-style:italic;opacity:.9}
+/* chat: below the play area, collapsible with unread badge */
+.mob #chat{margin:4px 6px calc(4px + env(safe-area-inset-bottom));height:auto;flex:none;min-height:0}
+.mob #chatbar{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;border-radius:8px;padding:2px 10px;font-size:15px;text-align:left;color:#ffd54a}
+.mob #chatprev{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font:13px Arial,sans-serif;opacity:.85;color:#f3e9c6}
+.mob #chat:not(.open) #chatlog,.mob #chat:not(.open) #chatform{display:none}
+.mob #chat.open{height:min(42%,330px)}.mob #chat.open #chatbar{border-bottom:1px solid #ffd54a44;border-radius:8px 8px 0 0}.mob #chat.open #chatarrow{transform:rotate(180deg)}
+.mob #chatform{gap:6px;padding:4px 6px}
+.mob #chatin{font-size:16px;min-height:44px;min-width:0}.mob #chatcount{display:none}.mob #chatform button{font-size:16px}
+.mob.typing #chat.open{height:auto;flex:1 1 58%}.mob.typing .main{flex:1 1 42%}
+/* very short visual viewport (landscape phone with the keyboard up): chat takes the whole screen while typing */
+.mob.typing.short header,.mob.typing.short .main{display:none}.mob.typing.short #chat.open{flex:1 1 auto;margin-top:4px}
+.mob footer{display:none}
+/* hand rankings + scoreboard: bottom sheet */
+.mob .side{display:none;position:fixed;z-index:20;left:0;right:0;bottom:0;width:auto;max-height:86%;overflow-y:auto;background:#0b2a17;border-top:3px solid #ffd54a;
+  border-radius:16px 16px 0 0;padding:6px calc(10px + env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left));gap:8px}
+.mob.sheet .side{display:flex}.mob.sheet #sheetbg{display:block;position:fixed;inset:0;background:#000a;z-index:19}
+.mob .sheethead{display:flex;justify-content:space-between;align-items:center;color:#ffd54a;font-size:16px;gap:8px}
+.mob .side>.board{overflow:visible;flex:none}.mob #ladder.hidden{display:block!important}
+.mob .lr{font-size:13.5px;padding:4px 6px}.mob .ladder,.mob .board,.mob .tips{font-size:14px}
+/* lobby */
+.mob #lobby{background:#0a3519;justify-content:flex-start;overflow-y:auto;overflow-x:hidden;padding:calc(12px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left))}
+.mob #lobby h1{font-size:clamp(32px,10vw,56px);letter-spacing:3px}.mob #lobby .sub{font-size:15px}
+.mob .lobbycols{flex-direction:column;align-items:stretch;width:100%;max-width:640px;gap:12px}
+.mob .lobbyform{width:100%}.mob .lobbycols .ladder{width:100%}.mob .rules{font-size:15px;padding-left:18px}
+.mob .lobbyform button{min-height:48px}.mob .joinrow button{flex:1}.mob #codeIn{width:120px!important}
+.mob #banner{position:fixed;top:calc(6px + env(safe-area-inset-top));max-width:92vw}
+.mob #toast{position:fixed;top:calc(52px + env(safe-area-inset-top));max-width:92vw}
+/* landscape phones / tablets: opponents + centre on the left, own hand on the right */
+.mob.land #app{--cw:min(calc((58vw - 64px) / 5),calc((var(--vvh,100dvh) - 196px) * .714),120px)}
+.mob.land .felt{display:grid;grid-template-columns:minmax(0,42%) minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto;grid-template-areas:"opps me" "center me";
+  height:100%;min-height:0;gap:6px 10px;padding:6px}
+
+.mob.land #opps{grid-area:opps;overflow-y:auto;align-content:start;min-height:0}
+.mob.land #showlist{grid-area:opps;overflow-y:auto;min-height:0}
+.mob.land #center{grid-area:center;max-height:62vh;overflow-y:auto}
+.mob.land #me{grid-area:me;align-self:start;margin:auto 0 0}
+/* landscape showdown: the whole felt scrolls (result + all hands on the left), own hand stays in view */
+.mob.land.inshow .felt{height:auto;min-height:100%;grid-template-rows:auto auto;grid-template-areas:"center me" "opps me"}
+.mob.land.inshow #center{max-height:none;overflow:visible}.mob.land.inshow #showlist{overflow:visible}
+.mob.land.inshow #me{position:sticky;top:0;margin:0}
+.mob.land #newspot{width:58px;height:81px}.mob.land #newspot .card,.mob.land #newspot .slot{width:58px}
+.mob.land #prompt .q{font-size:16px}.mob.land #prompt{font-size:14px}.mob.land .btns button{min-height:46px;padding:6px 12px}
+/* landscape phones: three compact seats per row in the narrow left column */
+.mob.land #opps{grid-template-columns:repeat(auto-fill,minmax(92px,1fr))}
+.mob.land .pod .card.mini{width:16px}

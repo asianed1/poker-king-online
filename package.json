@@ -10,8 +10,13 @@
     "test:bots": "node test/bots.js",
     "test:solo": "node test/solo.js",
     "test:malicious": "node test/malicious.js",
-    "test:browser": "node test/browser.js"
+    "test:browser": "node test/browser.js",
+    "test:mobile": "node test/mobile.js"
   },
-  "engines": { "node": ">=18" },
-  "dependencies": { "ws": "^8.18.0" }
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
 }

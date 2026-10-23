@@ -47,7 +47,7 @@
         try { history.replaceState(null, '', '?room=' + m.code); } catch (e) { }
         if (m.resumed) toast('Welcome back, ' + m.name + '! Your seat and cards were kept.');
         break;
-      case 'hist': $('chatlog').innerHTML = ''; m.l.forEach(addChat); break;
+      case 'hist': $('chatlog').innerHTML = ''; m.l.forEach(function (x) { x.hist = 1; addChat(x); }); unread = 0; showUnread(); break;
       case 'chat': addChat(m); break;
       case 'st': onState(m); break;
       case 'err':
@@ -107,7 +107,8 @@
   function render() {
     if (!S) return;
     $('code').textContent = S.code; $('handn').textContent = S.hn; $('deckn').textContent = S.deck; $('discn').textContent = S.disc;
-    renderOpps(); renderMe(); renderCenter(); renderScore(); renderLadder(); tick();
+    document.documentElement.classList.toggle('inshow', S.ph === 'show' && !!S.res && !S.res.walk);
+    renderOpps(); renderMe(); renderCenter(); renderShowList(); renderScore(); renderLadder(); tick();
   }
   function badges(q, s, box) {
     if (q.b) box.appendChild(el('span', 'badge cpu', 'computer')).title = 'The Dealer is played by the computer. It never draws new cards.';
@@ -231,7 +232,7 @@
       var lt = lastText(), lastHtml = lt && !(S.last.a === 'new' && S.sub !== 'ask') ? '<div class="desc">' + lt + '</div>' : '';
       if (myTurn) {
         if (S.sub === 'ask') setPrompt('<div class="q">Do you want a new card? (Y/N)</div>Offer ' + (S.ofs + 1) + ' of 3. Saying No means you stand with these cards.' + lastHtml, [['Yes (Y)', function () { act('new'); }, 'yesBtn'], ['No (N) — Stand', function () { act('stand'); }, 'noBtn']]);
-        else setPrompt('<div class="q">Choose a card to replace</div>Arrows/Tab or mouse, Enter/click to swap in the ' + cardName(S.offer) + ' — or press N to reject the new card.', [['Reject card (N)', function () { act('reject'); }, 'rejectBtn']]);
+        else setPrompt('<div class="q">Choose a card to replace</div>' + (TOUCH ? 'Tap one of your cards to swap in the ' + cardName(S.offer) + ' — or tap Reject card to discard it.' : 'Arrows/Tab or mouse, Enter/click to swap in the ' + cardName(S.offer) + ' — or press N to reject the new card.'), [['Reject card (N)', function () { act('reject'); }, 'rejectBtn']]);
       } else {
         var who = esc(tp.n), what = S.sub === 'ask' ? who + ' is deciding whether to ask for a new card…' : who + ' is choosing which card to replace with the ' + cardName(S.offer) + '…';
         setPrompt('<div class="q">' + what + '</div>' + (q && !q.ih ? 'You will be dealt in next hand. ' : '') + lastHtml, []);
@@ -244,6 +245,24 @@
       var dealerNote = hasDealer() && humans() >= 2 ? '<div class="desc">A second player is here, so the 🤖 Dealer steps aside from the next hand.</div>' : '';
       setPrompt('<div class="res">' + esc(S.res.head) + '</div><div class="exp">' + esc(S.res.text) + '</div>' + (S.host !== me ? '<div class="desc">' + hostName + ' (host) deals the next hand.</div>' : '') + dealerNote, b);
     }
+  }
+  function renderShowList() {
+    var box = $('showlist');
+    var key = S.ph === 'show' && S.res ? S.hn + ':' + JSON.stringify(S.res.win) + ':' + (S.res.hands || []).length : '';
+    if (box.dataset.k === key) return; box.dataset.k = key; box.innerHTML = '';
+    if (!key || !S.res.hands) return;
+    S.res.hands.forEach(function (h) {
+      var q = S.seats[h.s], mine = h.s === me && q && q.id === h.id, win = S.res.win.indexOf(h.s) >= 0;
+      var d = el('div', 'sl' + (win ? ' win' : '') + (mine ? ' me' : ''));
+      var hd = el('div', 'slh'); hd.appendChild(el('span', 'badge rk', ORD[h.rank]));
+      var who = el('span', 'who', (q && q.b && q.id === h.id ? '🤖 Dealer' : h.n) + (mine ? ' (you)' : '')); who.style.color = safeColor(h.c); hd.appendChild(who);
+      hd.appendChild(el('span', 'slhn', h.hn)); if (win) hd.appendChild(el('span', 'badge done', S.res.win.length > 1 ? 'split win' : 'winner'));
+      d.appendChild(hd);
+      var row = el('div', 'row');
+      h.cards.forEach(function (cs, i) { var c = cardEl(cs, false, false, true); if (h.used.indexOf(i) >= 0) c.classList.add('hl'); row.appendChild(c); });
+      d.appendChild(row); d.appendChild(el('div', 'sld', E.DESC[h.cat]));
+      box.appendChild(d);
+    });
   }
   function renderScore() {
     var box = $('score'); box.innerHTML = '';
@@ -273,7 +292,12 @@
     var key = you + ',' + win;
     if ($('ladder').dataset.k !== key) { $('ladder').innerHTML = ladderHTML(you, win); $('ladder').dataset.k = key; }
   }
+  function toggleSheet(force) {
+    var on = force !== undefined ? force : !document.documentElement.classList.contains('sheet');
+    document.documentElement.classList.toggle('sheet', on);
+  }
   function toggleLadder(force) {
+    if (MOB && inRoom && force === undefined) { toggleSheet(); return; }
     ladderOn = force !== undefined ? force : !ladderOn;
     $('ladder').classList.toggle('hidden', !ladderOn); $('ladder2').classList.toggle('hidden', !ladderOn);
   }
@@ -303,6 +327,9 @@
     if (m.sys) d.appendChild(el('span', 'sys', m.m));
     else { var w = el('span', 'who', m.n + ':'); w.style.color = safeColor(m.c); d.appendChild(w); d.appendChild(el('span', 'txt', m.m)); }
     log.appendChild(d);
+    $('chatprev').textContent = (m.sys ? '' : m.n + ': ') + m.m;
+    var mine = S && S.seats[me] && m.n === S.seats[me].n;
+    if (!m.hist && !m.sys && !mine && !chatOpen) { unread++; showUnread(); }
     while (log.children.length > 150) log.removeChild(log.firstChild);
     if (atBottom) log.scrollTop = log.scrollHeight;
   }
@@ -323,6 +350,7 @@
     }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     var k = e.key.toLowerCase();
+    if (k === 'escape' && document.documentElement.classList.contains('sheet')) { toggleSheet(false); return; }
     if (k === 'enter' || k === ' ') { e.preventDefault(); if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); }
     if (!$('lobby').classList.contains('hidden')) { if (k === 'h') toggleLadder(); return; }
     if (k === 'h') { toggleLadder(); return; }
@@ -358,15 +386,52 @@
     else toast('Share this link: ' + link);
   };
   $('leaveBtn').onclick = function () { if (!inRoom) return; send({ t: 'leave' }); store('pkTok', null); store('pkRoom', null); try { history.replaceState(null, '', '/'); } catch (e) { } toLobby('You left the table.'); };
-  $('hrBtn').onclick = function () { toggleLadder(); };
+  $('hrBtn').onclick = function () { if (MOB) toggleSheet(); else toggleLadder(); };
+  $('sheetClose').onclick = $('sheetbg').onclick = function () { toggleSheet(false); };
 
   var toastT = null;
   function toast(m) { var t = $('toast'); t.textContent = m; t.classList.remove('hidden'); clearTimeout(toastT); toastT = setTimeout(function () { t.classList.add('hidden'); }, 3500); }
   function banner(m) { var b = $('banner'); if (m) { b.textContent = m; b.classList.remove('hidden'); } else b.classList.add('hidden'); }
-  function fit() { var k = Math.min(innerWidth / 1280, innerHeight / 720); $('app').style.transform = 'translate(' + (innerWidth - 1280 * k) / 2 + 'px,' + (innerHeight - 720 * k) / 2 + 'px) scale(' + k + ')'; }
-  addEventListener('resize', fit); fit();
+  // ---------------- layout: fixed 1280x720 stage scaled to fit on desktop; responsive "mob" layout on phones/tablets
+  var MOB = false, TOUCH = false, chatOpen = true, unread = 0;
+  var coarse = window.matchMedia ? matchMedia('(hover: none) and (pointer: coarse)') : null;
+  function fit() {
+    var vv = window.visualViewport, w = innerWidth, h = innerHeight, root = document.documentElement;
+    TOUCH = !!(coarse && coarse.matches) || (navigator.maxTouchPoints > 0 && !(window.matchMedia && matchMedia('(pointer: fine)').matches));
+    var mob = w < 900 || h < 500 || (TOUCH && Math.min(w, h) < 900);
+    if (mob !== MOB) { MOB = mob; chatOpen = !mob; $('chat').classList.toggle('open', chatOpen); $('chatbar').setAttribute('aria-expanded', String(chatOpen)); if (!mob) toggleSheet(false); }
+    root.classList.toggle('mob', MOB); root.classList.toggle('touch', TOUCH); root.classList.toggle('land', MOB && w > h); root.classList.toggle('short', MOB && (vv ? vv.height : h) < 420);
+    setTips();
+    if (MOB) {
+      $('app').style.transform = '';
+      root.style.setProperty('--vvh', (vv ? vv.height : h) + 'px'); root.style.setProperty('--vvt', (vv ? vv.offsetTop : 0) + 'px');
+    } else {
+      var k = Math.min(w / 1280, h / 720); $('app').style.transform = 'translate(' + (w - 1280 * k) / 2 + 'px,' + (h - 720 * k) / 2 + 'px) scale(' + k + ')';
+    }
+  }
+  function setTips() {
+    var t = TOUCH ? '<b>Tap:</b> Yes / No to answer · tap one of your cards to swap the new card in · Reject card discards it · Rankings shows this sheet.'
+      : '<b>Keys:</b> Y / N answer · ← → / Tab choose a card · Enter swap · N / Esc reject card · H rankings. Typing in the chat box never triggers game keys.';
+    if ($('tips').innerHTML !== t) $('tips').innerHTML = t;
+  }
+  function showUnread() { var u = $('unread'); u.textContent = unread > 99 ? '99+' : String(unread); u.classList.toggle('hidden', !unread); }
+  function setChat(open) {
+    chatOpen = open; $('chat').classList.toggle('open', open); $('chatbar').setAttribute('aria-expanded', String(open));
+    if (open) { unread = 0; showUnread(); var log = $('chatlog'); log.scrollTop = log.scrollHeight; }
+  }
+  $('chatbar').onclick = function () { setChat(!chatOpen); };
+  $('chatin').addEventListener('focus', function () { if (MOB) { setChat(true); document.documentElement.classList.add('typing'); } });
+  var typT = null;
+  $('chatin').addEventListener('focus', function () { clearTimeout(typT); });
+  $('chatin').addEventListener('blur', function () { clearTimeout(typT); typT = setTimeout(function () { if (document.activeElement !== $('chatin')) document.documentElement.classList.remove('typing'); }, 250); });
+  // tapping Send must not blur the input (that would close the keyboard and shift the layout under the finger)
+  $('chatform').querySelector('button').addEventListener('mousedown', function (e) { if (MOB) e.preventDefault(); });
+  $('chatform').querySelector('button').addEventListener('pointerdown', function (e) { if (MOB && document.activeElement === $('chatin')) e.preventDefault(); });
+  addEventListener('resize', fit); addEventListener('orientationchange', fit);
+  if (window.visualViewport) { visualViewport.addEventListener('resize', fit); visualViewport.addEventListener('scroll', fit); }
+  if (coarse && coarse.addEventListener) coarse.addEventListener('change', fit);
+  fit();
   $('ladder2').innerHTML = ladderHTML(-1, -1); $('ladder').innerHTML = ladderHTML(-1, -1);
-  $('tips').innerHTML = '<b>Keys:</b> Y / N answer · ← → / Tab choose a card · Enter swap · N / Esc reject card · H rankings. Typing in the chat box never triggers game keys.';
 
   // ---------------- boot
   try { $('nameIn').value = localStorage.getItem('pkName') || ''; } catch (e) { }
@@ -375,5 +440,5 @@
   var tok = load('pkTok'), troom = load('pkRoom');
   if (tok && (!want || want === troom)) { inRoom = true; $('lobby').classList.add('hidden'); banner('Reconnecting to your table…'); connect(); }
   else toLobby('');
-  window.__pk = { get S() { return S; }, get cursor() { return cursor; }, get me() { return me; }, get ws() { return ws; }, log: LOG };
+  window.__pk = { get S() { return S; }, get cursor() { return cursor; }, get me() { return me; }, get ws() { return ws; }, get mob() { return MOB; }, get touch() { return TOUCH; }, get chatOpen() { return chatOpen; }, get unread() { return unread; }, log: LOG };
 })();

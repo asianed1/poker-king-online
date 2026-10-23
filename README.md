@@ -109,6 +109,10 @@ On Render, set these under **Environment** in the dashboard. Locally, run for ex
 
 ## 3. How to play
 
+* **Phones and tablets** get their own layout (big hand at the bottom, compact seats for the other players).
+  Just tap: **Yes / No**, tap one of your cards to swap the new card in, or **Reject card**. The chat sits below
+  the table and folds away (a red badge counts unread messages). **Rankings** opens the hand rankings as a sheet.
+
 * **Lobby**
   * Enter a display name.
   * **Create a new table** gives you a 5-character code and an invite link (`…/?room=CODE`).
@@ -202,6 +206,7 @@ npm run test:malicious         # hostile clients: junk/oversized/flood messages,
 # real browsers (headless Chrome via playwright-core):
 mkdir -p /tmp/pw && (cd /tmp/pw && npm init -y && npm i playwright-core)
 npm run test:browser -- 8      # ~60 hands across 2–8 players + solo vs Dealer; saves screenshots/ (incl. solo.png)
+npm run test:mobile -- 2 4    # phones/tablets (iPhone, Android, iPad; portrait + landscape), taps only; saves screenshots/mobile-*.png
 ```
 
 The browser test expects Chrome at `/usr/bin/google-chrome` (override with `CHROME=/path/to/chrome`), and finds playwright-core through
