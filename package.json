@@ -1,0 +1,16 @@
+{
+  "name": "poker-king-online",
+  "version": "1.0.0",
+  "description": "POKER KING online - multiplayer 5-card draw for poker beginners. Published by Crow New Media.",
+  "main": "server.js",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/unit.js",
+    "test:bots": "node test/bots.js",
+    "test:malicious": "node test/malicious.js",
+    "test:browser": "node test/browser.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": { "ws": "^8.18.0" }
+}

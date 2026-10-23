@@ -1,0 +1,32 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>POKER KING — Online</title><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/style.css"></head><body><div id="app">
+<header><div class="brand"><h1>POKER KING</h1><span class="pub">Published by Crow New Media</span></div>
+<div class="hinfo"><span>Table <b id="code">-----</b></span><button id="copyBtn" class="sm" title="Copy a link your friends can open to join">Copy invite link</button>
+<span>Hand <b id="handn">0</b></span><span>Deck <b id="deckn">0</b></span><span>Discards <b id="discn">0</b></span>
+<button id="hrBtn" class="sm">Hand Rankings (H)</button><button id="leaveBtn" class="sm">Leave table</button></div></header>
+<div class="main">
+ <div class="felt" id="felt">
+  <div id="opps"></div>
+  <div id="center"><div id="status"></div><div class="mid"><div id="newwrap"><div class="cap" id="newcap">New card</div><div id="newspot"><div class="slot">new card</div></div></div><div class="pr"><div id="prompt"></div><div class="btns" id="btns"></div></div></div></div>
+  <div id="me"><div id="mehead"></div><div class="row" id="myhand"></div><div class="hname" id="myname"></div><div class="desc" id="mydesc"></div></div>
+ </div>
+ <div class="side"><div class="board"><h3>Scoreboard — hands won</h3><div id="score"></div></div><div class="ladder" id="ladder"></div><div class="tips" id="tips"></div></div>
+</div>
+<div id="chat"><div id="chatlog" aria-live="polite"></div><form id="chatform" autocomplete="off"><input id="chatin" maxlength="200" placeholder="Chat with the table… (press Enter to send)"><span id="chatcount">0/200</span><button type="submit">Send</button></form></div>
+<footer>POKER KING &middot; Published by Crow New Media &middot; Online edition</footer>
+<div id="lobby"><h1>POKER KING</h1><div class="pub">Published by Crow New Media</div><div class="sub">Online multiplayer &middot; 2–8 players &middot; learn poker with friends anywhere</div>
+ <div class="lobbycols"><div class="lobbyform">
+  <label for="nameIn">Your display name</label><input id="nameIn" maxlength="16" placeholder="e.g. Maria">
+  <button id="createBtn" class="big">Create a new table</button>
+  <div class="or">— or join a friend's table —</div>
+  <div class="joinrow"><input id="codeIn" maxlength="5" placeholder="CODE" autocapitalize="characters"><button id="joinBtn">Join table</button></div>
+  <div id="lobbyMsg" role="alert"></div>
+ </div>
+ <ul class="rules"><li>Every player gets 5 cards from a freshly shuffled 52-card deck. You see only <b>your</b> cards.</li>
+ <li>Taking turns clockwise, each player gets up to 3 offers: <b>"Do you want a new card? (Y/N)"</b>. The new card is dealt <b>face up</b> so everyone sees it.</li>
+ <li>Take it (pick which card to replace with arrows/Tab or the mouse, then Enter or click; Esc goes back) or discard it. Saying N to a new card means you <b>stand</b>.</li>
+ <li>Showdown: all hands are revealed and the best poker hand wins. Exact ties split the win — suits never break ties.</li>
+ <li>No betting — just learning which hands win. Press <b>H</b> any time for the hand rankings.</li></ul>
+ <div class="ladder" id="ladder2"></div></div></div>
+<div id="banner" class="hidden"></div><div id="toast" class="hidden"></div>
+</div><script src="/evaluator.js"></script><script src="/client.js"></script></body></html>

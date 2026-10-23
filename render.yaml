@@ -1,0 +1,20 @@
+# Render Blueprint for POKER KING online (free tier).
+# Render → New → Blueprint → pick your repo; this file is read automatically.
+services:
+  - type: web
+    name: poker-king-online
+    runtime: node
+    plan: free
+    buildCommand: npm install --omit=dev
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: TURN_SECONDS        # seconds each player gets per decision
+        value: "45"
+      - key: RECONNECT_SECONDS   # how long a dropped player keeps their seat and cards
+        value: "60"
+      - key: NEXT_HAND_SECONDS   # auto-deal the next hand if the host doesn't
+        value: "40"
