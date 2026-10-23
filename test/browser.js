@@ -16,7 +16,7 @@ const SHOTS = path.join(__dirname, '..', 'screenshots');
 let pass = 0, failN = 0; const fails = [];
 function ok(c, m) { if (c) pass++; else { failN++; fails.push(m); console.log('FAIL:', m); } }
 const rnd = Math.random, pick = a => a[Math.floor(rnd() * a.length)];
-const stat = { hands: 0, walkovers: 0, bySize: {}, keyActs: 0, mouseActs: 0, timeouts: 0, swaps: 0, cancels: 0, reloadsTurn: 0, reloadsSelect: 0, leavesTurn: 0, leavesShow: 0, hostLeaves: 0, midJoins: 0, frames: 0, leakChecks: 0, domChecks: 0, chats: 0 };
+const stat = { hands: 0, walkovers: 0, bySize: {}, keyActs: 0, mouseActs: 0, timeouts: 0, swaps: 0, rejects: 0, reloadsTurn: 0, reloadsSelect: 0, leavesTurn: 0, leavesShow: 0, hostLeaves: 0, midJoins: 0, frames: 0, leakChecks: 0, domChecks: 0, chats: 0 };
 const offersSeen = new Map();  // code:hn -> Set of cards that were ever face up (offered) — public info
 const pendingLeak = [];        // [key, card, who]
 const showVerified = new Set();
@@ -175,11 +175,17 @@ async function playHand(ps, opts = {}) {
     if (T.sub === 'ask') {
       const yes = rnd() < 0.65;
       if (useKey) await tp.key(yes ? 'y' : 'n'); else await tp.click(yes ? '#yesBtn' : '#noBtn');
-    } else if (T.sub === 'take') {
-      const yes = rnd() < 0.55;
-      if (useKey) await tp.key(yes ? 'Y' : 'N'); else await tp.click(yes ? '#yesBtn' : '#noBtn');
     } else if (T.sub === 'select') {
-      if (rnd() < 0.12) { stat.cancels++; if (useKey) await tp.key('Escape'); else await tp.click('#cancelBtn'); }
+      if (!tp.selChecked || tp.selChecked !== hn + ':' + T.ofs) {
+        tp.selChecked = hn + ':' + T.ofs;
+        const ui = await tp.page.evaluate(() => ({ cur: window.__pk.cursor, q: (document.getElementById('prompt') || {}).textContent || '', btns: Array.from(document.querySelectorAll('#prompt button, #btns button')).map(b => b.textContent), curEl: document.querySelectorAll('#myhand .card.cur').length }));
+        if (tp.S.sub === 'select' && tp.S.ofs === T.ofs && tp.S.hn === hn) {
+          ok(/Choose a card to replace/.test(ui.q) && /press N to reject the new card/.test(ui.q), 'selection prompt: ' + ui.q);
+          ok(ui.btns.includes('Reject card (N)') && !ui.btns.some(b => /Take|Cancel/.test(b)), 'only the Reject button: ' + ui.btns);
+          ok(ui.cur === 0 && ui.curEl === 1, 'cursor starts on the first card (' + ui.cur + ')');
+        }
+      }
+      if (rnd() < 0.25) { stat.rejects++; if (useKey) await tp.key(pick(['n', 'N', 'Escape'])); else await tp.click('#rejectBtn'); }
       else {
         const i = Math.floor(rnd() * 5), offer = T.offer;
         if (useKey) {

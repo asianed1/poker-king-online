@@ -11,10 +11,11 @@ const { parse } = require('../lib/cards');
 
 const PORT = 3400 + Math.floor(Math.random() * 500);
 const URL = 'ws://localhost:' + PORT + '/ws';
+const pick = a => a[Math.floor(Math.random() * a.length)];
 const TARGET = +(process.argv[2] || 45); // showdowns per table
 const SIZES = [2, 3, 4, 5, 6, 7, 8, 2, 3, 4, 5, 6, 7, 8];
 const TURN_MS = 500;
-const fails = []; const counts = { showdowns: 0, walkovers: 0, msgs: 0, leakChecks: 0, timeouts: 0, dcs: 0, dcTurn: 0, dcSelect: 0, resumes: 0, resumeCardsKept: 0, leavesTurn: 0, leavesShow: 0, hostLeaves: 0, allButOne: 0, rejected9: 0, takes: 0, stands: 0, discards: 0, cancels: 0, expired: 0, reshuffleMsgs: 0, bySize: {}, byTable: {} };
+const fails = []; const counts = { showdowns: 0, walkovers: 0, msgs: 0, leakChecks: 0, timeouts: 0, dcs: 0, dcTurn: 0, dcSelect: 0, resumes: 0, resumeCardsKept: 0, leavesTurn: 0, leavesShow: 0, hostLeaves: 0, allButOne: 0, rejected9: 0, takes: 0, stands: 0, rejects: 0, retired: 0, expired: 0, reshuffleMsgs: 0, bySize: {}, byTable: {} };
 function fail(m) { if (fails.length < 60) console.log('FAIL:', m); fails.push(m); }
 const rnd = () => Math.random();
 let botId = 0;
@@ -125,8 +126,10 @@ class Bot {
       if (rnd() < 0.03) this.send({ t: 'act', a: 'new' });           // duplicate / stale
       this.lastActAt = Date.now();
       if (s === 'ask') { if (rnd() < 0.7) this.send({ t: 'act', a: 'new' }); else { counts.stands++; this.send({ t: 'act', a: 'stand' }); } }
-      else if (s === 'take') { if (rnd() < 0.6) this.send({ t: 'act', a: 'sel' }); else { counts.discards++; this.send({ t: 'act', a: 'discard' }); } }
-      else if (s === 'select') { if (rnd() < 0.15) { counts.cancels++; this.send({ t: 'act', a: 'cancel' }); } else { counts.takes++; this.send({ t: 'act', a: 'swap', i: Math.floor(rnd() * 5) }); } }
+      else if (s === 'select') {
+        if (rnd() < 0.05) { counts.retired++; this.send({ t: 'act', a: pick(['sel', 'cancel', 'discard']) }); } // old protocol: must be ignored
+        if (rnd() < 0.35) { counts.rejects++; this.send({ t: 'act', a: 'reject' }); } else { counts.takes++; this.send({ t: 'act', a: 'swap', i: Math.floor(rnd() * 5) }); }
+      }
       if (rnd() < 0.05) this.send({ t: 'act', a: 'swap', i: 2 });    // double-submit race
     }, rnd() * 25);
   }

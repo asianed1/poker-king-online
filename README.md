@@ -147,12 +147,14 @@ On Render, set these under **Environment** in the dashboard. Locally, run for ex
     hand.
   * On your turn you get up to **3 offers**: *"Do you want a new card? (Y/N)"*.
     * **N** means you stand.
-    * **Y** turns a new card face up for everyone to see, and then you're asked *"Take this card?
-      (Y/N)"*.
-      * **N** discards it.
-      * **Y** lets you choose which of your cards to replace. Use ← → or Tab or the mouse to
-        choose, Enter or click to swap, and Esc to go back.
-  * Each decision has a 45-second timer.
+    * **Y** turns a new card face up for everyone to see, and you go **straight to choosing**
+      which of your cards to replace (the cursor starts on your first card):
+      * use ← → or Tab or the mouse to choose, and Enter or click to swap the new card in;
+      * or press **N** or **Esc** (or the **Reject card (N)** button) to reject the new card. It
+        goes to the discards.
+    * Either way, the offer counts toward your 3.
+  * Each decision has a 45-second timer. Running out of time while choosing rejects the new card
+    and ends your turn.
   * When the deck runs out, the discards are shuffled into a new deck, and the game announces it.
 * **Showdown**
   * All hands are revealed and named, with the cards that make the hand highlighted.

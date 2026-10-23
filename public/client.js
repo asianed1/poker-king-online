@@ -184,12 +184,12 @@
     switch (L.a) {
       case 'new': return n + ' asked for a new card: ' + c;
       case 'stand': return n + ' stands (keeps their cards).';
-      case 'discard': return n + ' discarded the ' + c + '.';
+      case 'reject': return n + ' rejected the ' + c + ' (it goes to the discards).';
       case 'take': return n + ' took the ' + c + ', replacing card #' + (L.i + 1) + '.';
       case 'tstand': return n + ' ran out of time and stands.';
-      case 'tdiscard': return n + ' ran out of time; the ' + c + ' was discarded.';
+      case 'treject': return n + ' ran out of time; the ' + c + ' was rejected.';
       case 'ostand': return n + ' is offline, so they stand.';
-      case 'odiscard': return n + ' went offline; the ' + c + ' was discarded.';
+      case 'oreject': return n + ' went offline; the ' + c + ' was rejected.';
     }
     return '';
   }
@@ -231,10 +231,9 @@
       var lt = lastText(), lastHtml = lt && !(S.last.a === 'new' && S.sub !== 'ask') ? '<div class="desc">' + lt + '</div>' : '';
       if (myTurn) {
         if (S.sub === 'ask') setPrompt('<div class="q">Do you want a new card? (Y/N)</div>Offer ' + (S.ofs + 1) + ' of 3. Saying No means you stand with these cards.' + lastHtml, [['Yes (Y)', function () { act('new'); }, 'yesBtn'], ['No (N) — Stand', function () { act('stand'); }, 'noBtn']]);
-        else if (S.sub === 'take') setPrompt('<div class="q">Take this card? (Y/N)</div>Everyone can see it. If you take it, you choose which of your cards to replace.', [['Yes (Y) — choose a card', function () { act('sel'); }, 'yesBtn'], ['No (N) — Discard', function () { act('discard'); }, 'noBtn']]);
-        else setPrompt('<div class="q">Choose a card to replace</div>Arrows/Tab or mouse to choose · Enter/click to swap · Esc to cancel', [['Cancel (Esc)', function () { act('cancel'); }, 'cancelBtn']]);
+        else setPrompt('<div class="q">Choose a card to replace</div>Arrows/Tab or mouse, Enter/click to swap in the ' + cardName(S.offer) + ' — or press N to reject the new card.', [['Reject card (N)', function () { act('reject'); }, 'rejectBtn']]);
       } else {
-        var who = esc(tp.n), what = S.sub === 'ask' ? who + ' is deciding whether to ask for a new card…' : S.sub === 'take' ? who + ' is deciding whether to take the ' + cardName(S.offer) + '…' : who + ' is choosing which card to replace with the ' + cardName(S.offer) + '…';
+        var who = esc(tp.n), what = S.sub === 'ask' ? who + ' is deciding whether to ask for a new card…' : who + ' is choosing which card to replace with the ' + cardName(S.offer) + '…';
         setPrompt('<div class="q">' + what + '</div>' + (q && !q.ih ? 'You will be dealt in next hand. ' : '') + lastHtml, []);
       }
     } else if (S.ph === 'show' && S.res) {
@@ -330,12 +329,11 @@
     if (!S) return;
     if (isMyTurn()) {
       if (S.sub === 'ask') { if (k === 'y') act('new'); else if (k === 'n') act('stand'); }
-      else if (S.sub === 'take') { if (k === 'y') act('sel'); else if (k === 'n') act('discard'); }
       else if (S.sub === 'select') {
         if (k === 'arrowright' || (k === 'tab' && !e.shiftKey)) { e.preventDefault(); cursor = (cursor + 1) % 5; markCursor(); }
         else if (k === 'arrowleft' || (k === 'tab' && e.shiftKey)) { e.preventDefault(); cursor = (cursor + 4) % 5; markCursor(); }
         else if (k === 'enter') act('swap', cursor);
-        else if (k === 'escape') act('cancel');
+        else if (k === 'n' || k === 'escape') act('reject');
       }
     } else if (k === 'enter' && (S.ph === 'wait' || S.ph === 'show')) startGame();
   });
@@ -368,7 +366,7 @@
   function fit() { var k = Math.min(innerWidth / 1280, innerHeight / 720); $('app').style.transform = 'translate(' + (innerWidth - 1280 * k) / 2 + 'px,' + (innerHeight - 720 * k) / 2 + 'px) scale(' + k + ')'; }
   addEventListener('resize', fit); fit();
   $('ladder2').innerHTML = ladderHTML(-1, -1); $('ladder').innerHTML = ladderHTML(-1, -1);
-  $('tips').innerHTML = '<b>Keys:</b> Y / N answer · ← → or Tab choose a card · Enter confirm · Esc go back · H show/hide rankings. Typing in the chat box never triggers game keys.';
+  $('tips').innerHTML = '<b>Keys:</b> Y / N answer · ← → / Tab choose a card · Enter swap · N / Esc reject card · H rankings. Typing in the chat box never triggers game keys.';
 
   // ---------------- boot
   try { $('nameIn').value = localStorage.getItem('pkName') || ''; } catch (e) { }

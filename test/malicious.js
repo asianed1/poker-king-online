@@ -84,24 +84,41 @@ function get(path) { return new Promise(res => http.get({ host: 'localhost', por
   const cs = [a, b, d];
   let turn = a.S.turn, tp = bySeat(cs, turn), others = cs.filter(c => c !== tp);
   const before = JSON.stringify(a.S.seats.map(s => s && s.k)) + a.S.turn + a.S.sub;
-  for (const o of others) { for (const act of ['new', 'stand', 'discard', 'sel', 'cancel', 'swap']) o.send({ t: 'act', a: act, i: 1 }); }
+  for (const o of others) { for (const act of ['new', 'stand', 'reject', 'discard', 'sel', 'cancel', 'swap']) o.send({ t: 'act', a: act, i: 1 }); }
   m = await others[0].wait(m => m.t === 'err' && m.code === 'turn'); ok(true, 'out-of-turn rejected with message');
   await sleep(100);
   ok(a.S.turn === turn && a.S.sub === 'ask' && a.S.ofs === 0, 'out-of-turn actions changed nothing');
   tp.send({ t: 'act', a: 'new' }); tp.send({ t: 'act', a: 'new' }); tp.send({ t: 'act', a: 'new' });
-  await tp.waitState(s => s.sub === 'take'); await sleep(80);
-  ok(tp.S.ofs === 1 && tp.S.sub === 'take', 'duplicate "new" -> one offer only (ofs=' + tp.S.ofs + ')');
-  tp.send({ t: 'act', a: 'swap', i: 0 }); await sleep(60);
-  ok(tp.S.sub === 'take', 'swap without select is ignored');
-  tp.send({ t: 'act', a: 'sel' }); await tp.waitState(s => s.sub === 'select');
+  await tp.waitState(s => s.sub === 'select'); await sleep(80);
+  ok(tp.S.ofs === 1 && tp.S.sub === 'select' && tp.S.offer, 'Y goes straight to selection; duplicate "new" -> one offer only (ofs=' + tp.S.ofs + ')');
+  { // the retired take/decline/cancel sequence is ignored cleanly
+    const n0 = tp.msgs.length, h0 = JSON.stringify(tp.S.seats[tp.seat].cards), o0 = tp.S.offer;
+    for (const a of ['sel', 'cancel', 'discard', 'take', 'sel']) tp.send({ t: 'act', a, i: 0 });
+    tp.send({ t: 'act', a: 'swap', i: 9 }); tp.send({ t: 'act', a: 'swap', i: '2' }); tp.send({ t: 'act', a: 'REJECT' }); tp.send({ t: 'act', a: ['reject'] });
+    await sleep(80);
+    ok(tp.S.sub === 'select' && tp.S.offer === o0 && JSON.stringify(tp.S.seats[tp.seat].cards) === h0 && !tp.closed, 'old take/decline/cancel actions and bad swaps ignored');
+    ok(tp.msgs.slice(n0).every(m => m.t !== 'err' || m.code !== 'turn'), 'no spurious errors');
+  }
   const handBefore = tp.S.seats[tp.seat].cards.slice(), offer = tp.S.offer;
-  tp.send({ t: 'act', a: 'swap', i: 3 }); tp.send({ t: 'act', a: 'swap', i: 4 }); tp.send({ t: 'act', a: 'discard' });
+  tp.send({ t: 'act', a: 'swap', i: 3 }); tp.send({ t: 'act', a: 'swap', i: 4 }); tp.send({ t: 'act', a: 'reject' });
   await tp.waitState(s => s.sub === 'ask' && s.ofs === 1); await sleep(80);
   const handAfter = tp.S.seats[tp.seat].cards;
   ok(handAfter[3] === offer && handAfter[4] === handBefore[4] && tp.S.sub === 'ask', 'double swap -> only first applied');
   // others see the taken card face up at position 3, nothing else
   const ov = others[0].S.seats[tp.seat].cards;
   ok(ov && ov[3] === offer && ov.filter(Boolean).length === 1, 'taken card public, others hidden');
+  { // reject: the new card goes to the discards, hand unchanged; a double reject / late swap is ignored
+    const h1 = JSON.stringify(tp.S.seats[tp.seat].cards), d1 = tp.S.disc;
+    tp.send({ t: 'act', a: 'new' }); await tp.waitState(s => s.sub === 'select' && s.ofs === 2);
+    tp.send({ t: 'act', a: 'reject' }); tp.send({ t: 'act', a: 'reject' }); tp.send({ t: 'act', a: 'swap', i: 0 });
+    await tp.waitState(s => s.sub === 'ask' && s.ofs === 2); await sleep(80);
+    ok(JSON.stringify(tp.S.seats[tp.seat].cards) === h1 && tp.S.disc === d1 + 1 && tp.S.last.a === 'reject' && tp.S.ofs === 2, 'reject counted, card discarded, extras ignored');
+    // third offer: let the selection time out -> card rejected, turn ends
+    tp.send({ t: 'act', a: 'new' }); await tp.waitState(s => s.sub === 'select' && s.ofs === 3);
+    const seat = tp.seat;
+    const after = await tp.wait(m => m.t === 'st' && (m.turn !== seat || m.ph !== 'draw'), TURN + 1500);
+    ok(after.last && after.last.a === 'treject' && after.last.s === seat && JSON.stringify(after.seats[seat].cards) === h1, 'selection timeout rejects the card and ends the turn');
+  }
 
   // ---- 4. stale timers: act just before the deadline, then make sure the NEXT player's turn is not cut short
   let staleOk = 0, staleBad = 0;
@@ -202,12 +219,12 @@ function get(path) { return new Promise(res => http.get({ host: 'localhost', por
     const st = await s.waitState(m => m.ph === 'deal');
     const ds = st.seats.findIndex(q => q && q.b);
     ok(ds >= 0 && st.seats[ds].n === 'Dealer' && st.host === s.seat, 'solo start seats the Dealer, human stays host');
-    for (let i = 0; i < 15; i++) s.send({ t: 'act', a: ['sel', 'swap', 'discard', 'cancel', 'take'][i % 5], i: i % 7, seat: ds }); // out-of-state spam (deal / ask phase)
+    for (let i = 0; i < 15; i++) s.send({ t: 'act', a: ['sel', 'swap', 'discard', 'cancel', 'reject'][i % 5], i: i % 7, seat: ds }); // out-of-state spam (deal / ask phase)
     await s.waitState(m => m.ph === 'draw' && m.turn === s.seat, 3000);
     const before = s.msgs.length;
     s.send({ t: 'act', a: 'new' }); s.send({ t: 'act', a: 'new' }); s.send({ t: 'act', a: 'new' }); // duplicates: only the first counts
     await sleep(120);
-    ok(s.S.ofs === 1 && s.S.sub === 'take', 'duplicate "new" counted once in solo (' + JSON.stringify({ ph: s.S.ph, turn: s.S.turn, me: s.seat, ofs: s.S.ofs, sub: s.S.sub, last: s.S.last, hn: s.S.hn }) + ')');
+    ok(s.S.ofs === 1 && s.S.sub === 'select', 'duplicate "new" counted once in solo (' + JSON.stringify({ ph: s.S.ph, turn: s.S.turn, me: s.seat, ofs: s.S.ofs, sub: s.S.sub, last: s.S.last, hn: s.S.hn }) + ')');
     s.send({ t: 'chat', m: 'brb' }); await sleep(30);
     // vanish on own turn: grace 0.3 s then auto-stand -> showdown, hand ends cleanly without a client
     s.ws.close(); await sleep(900);

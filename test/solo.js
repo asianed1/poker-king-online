@@ -96,8 +96,7 @@ class H {
     const delay = 2 + rnd() * 20;
     setTimeout(() => {
       if (m.sub === 'ask') this.send({ t: 'act', a: rnd() < 0.7 ? 'new' : 'stand' });
-      else if (m.sub === 'take') this.send({ t: 'act', a: rnd() < 0.6 ? 'sel' : 'discard' });
-      else if (rnd() < 0.1) this.send({ t: 'act', a: 'cancel' });
+      else if (rnd() < 0.35) { c.rejects = (c.rejects || 0) + 1; this.send({ t: 'act', a: 'reject' }); }
       else { c.takes++; this.send({ t: 'act', a: 'swap', i: Math.floor(rnd() * 5) }); }
     }, delay);
   }

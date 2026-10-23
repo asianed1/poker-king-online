@@ -149,11 +149,10 @@ for (let game = 0; game < 300; game++) {
       if (roll < 0.05) { const q = room.players().find(x => !x.connected); if (q) room.reconnect(q, mkWs(), q.tab); continue; }
       if (roll < 0.06) { room.timeout(); continue; }
       if (roll < 0.07 && room.count() < 8) { room.join('Late' + game, mkWs(), 'late'); continue; }
-      if (roll < 0.08) { const q = pick(room.players()); room.act(q, pick(['new', 'stand', 'discard', 'sel', 'cancel', 'swap', 'xx']), pick([0, 4, 5, -1, 'a', undefined])); continue; } // random (often out-of-turn) junk
+      if (roll < 0.08) { const q = pick(room.players()); room.act(q, pick(['new', 'stand', 'reject', 'discard', 'sel', 'cancel', 'take', 'swap', 'xx']), pick([0, 4, 5, -1, 'a', undefined])); continue; } // random (often out-of-turn) junk
       const p = tp;
       if (room.sub === 'ask') room.act(p, Math.random() < 0.75 ? 'new' : 'stand');
-      else if (room.sub === 'take') room.act(p, pick(['sel', 'discard', 'sel']));
-      else if (room.sub === 'select') { const r2 = Math.random(); if (r2 < 0.15) room.act(p, 'cancel'); else room.act(p, 'swap', Math.floor(Math.random() * 5)); }
+      else if (room.sub === 'select') { const r2 = Math.random(); if (r2 < 0.3) room.act(p, 'reject'); else room.act(p, 'swap', Math.floor(Math.random() * 5)); }
       ok(p.offers <= 3, 'max 3 offers');
       checkViews(room);
     }
@@ -201,9 +200,8 @@ console.log('simulated hands:', handsSim, 'view card checks:', leaksChecked);
     while (room.phase === 'draw') {
       const p = room.turnPlayer(), before = room.deck.length;
       if (room.sub === 'ask') room.act(p, 'new');
-      else if (room.sub === 'take') room.act(p, 'sel');
       else room.act(p, 'swap', hand % 5);
-      if (before === 0 && room.sub === 'take') reshuf++;
+      if (before === 0 && room.sub === 'select') reshuf++;
       ok(room.check(), 'conservation during reshuffles');
     }
     ok(room.phase === 'show', 'showdown after reshuffles');
@@ -267,7 +265,7 @@ console.log('simulated hands:', handsSim, 'view card checks:', leaksChecked);
       dealerChecks++;
       ok(st.seats[D.seat].cards === undefined && st.res === null, 'Dealer cards hidden during the draw');
       if (room.sub === 'ask') room.act(p, Math.random() < 0.8 ? 'new' : 'stand');
-      else if (room.sub === 'take') room.act(p, Math.random() < 0.6 ? 'sel' : 'discard');
+      else if (Math.random() < 0.3) room.act(p, 'reject');
       else room.act(p, 'swap', Math.floor(Math.random() * 5));
       ok(p.offers <= 3, 'max 3 offers in solo');
       ok(room.check(), 'conservation in solo');
@@ -328,6 +326,56 @@ console.log('simulated hands:', handsSim, 'view card checks:', leaksChecked);
   ok(room.dead && room.timer === null && room.nextTimer === null, 'room destroyed when the solo human leaves');
   ok(!h.inv.length && !h.errors.length, 'no invariant failures in solo mode ' + (h.inv[0] || h.errors[0] || ''));
   console.log('solo unit hands: ' + soloHands + ' (Dealer won ' + dealerWins + ', human won ' + humanWins + '), hidden-card checks: ' + dealerChecks);
+}
+
+// ---- 9. draw flow: "new card" goes straight to choosing; reject / swap / timeout; retired actions ignored
+{
+  const h = mkHarness(); const room = new Room('FLOW', cfg, h.hooks);
+  const wa = { inbox: [] }, wb = { inbox: [] };
+  room.join('Ann', wa, 'a'); room.join('Ben', wb, 'b');
+  let flows = 0;
+  for (let hand = 0; hand < 200; hand++) {
+    room.startHand(); while (room.phase === 'deal') room.dealStep();
+    while (room.phase === 'draw') {
+      const p = room.turnPlayer(), ofs0 = p.offers, hand0 = p.hand.map(str).join(), disc0 = room.discards.length;
+      ok(room.sub === 'ask' && !room.offer, 'turn starts with the "new card?" question');
+      for (const a of ['sel', 'cancel', 'discard', 'take', 'reject', 'swap']) room.act(p, a, 1); // all invalid while asking
+      ok(room.sub === 'ask' && p.offers === ofs0 && !room.offer && p.hand.map(str).join() === hand0, 'non-ask actions ignored while asking');
+      if (p.offers === 2 && hand % 4 === 0) { room.act(p, 'stand'); continue; }
+      room.act(p, 'new');
+      ok(room.sub === 'select' && room.offer && p.offers === ofs0 + 1, 'Y goes straight to choosing a card (sub=' + room.sub + ')');
+      const v = (p === room.seats[0] ? wa : wb).inbox.filter(m => m.t === 'st').pop();
+      ok(v.sub === 'select' && v.offer === str(room.offer), 'state shows selection with the face-up card');
+      const offer = room.offer;
+      for (const a of ['sel', 'cancel', 'discard', 'take', 'new', 'stand']) room.act(p, a, 0); // retired / out-of-state
+      room.act(p, 'swap', 5); room.act(p, 'swap', -1); room.act(p, 'swap', '1'); room.act(p, 'swap', 1.5);
+      ok(room.sub === 'select' && room.offer === offer && p.hand.map(str).join() === hand0 && p.offers === ofs0 + 1, 'retired actions and bad swaps ignored in selection');
+      const r = (hand * 7 + p.offers) % 3;
+      if (r === 0) {
+        room.act(p, 'reject'); flows++;
+        ok(p.hand.map(str).join() === hand0 && room.discards[room.discards.length - 1] === offer && room.last.a === 'reject', 'reject discards the new card, hand unchanged');
+      } else if (r === 1) {
+        const i = (hand + p.offers) % 5, old = p.hand[i];
+        room.act(p, 'swap', i); flows++;
+        ok(p.hand[i] === offer && p.pub.has(i) && room.discards.includes(old) && room.last.a === 'take', 'swap puts the new card in');
+        room.act(p, 'swap', (i + 1) % 5); // double submit
+        ok(p.hand[(i + 1) % 5] !== offer, 'double swap ignored');
+      } else {
+        const turnBefore = p; room.timeout(); flows++;
+        ok(room.last.a === 'treject' && room.discards[room.discards.length - 1] === offer && p.hand.map(str).join() === hand0 && p.done && room.turnPlayer() !== turnBefore, 'timeout while choosing rejects the card and ends the turn');
+      }
+      if (r !== 2 && p.offers >= 3) ok(room.turnPlayer() !== p, 'third offer ends the turn, rejected or not');
+      ok(room.check() && p.offers <= 3, 'conservation / max 3 offers');
+    }
+    ok(room.phase === 'show', 'flow hand reaches showdown');
+  }
+  // offline player timing out while choosing
+  room.startHand(); while (room.phase === 'deal') room.dealStep();
+  const tp = room.turnPlayer(); room.act(tp, 'new'); room.disconnect(tp, tp.ws); room.timeout();
+  ok(room.last.a === 'oreject' && room.turnPlayer() !== tp, 'offline player: new card rejected, turn ends');
+  ok(!h.inv.length && !h.errors.length, 'no invariant failures in draw-flow tests');
+  console.log('draw-flow unit checks: ' + flows + ' offers (swap / reject / timeout)');
+  room.destroy();
 }
 
 console.log('unit tests: ' + pass + ' passed, ' + fail + ' failed');
